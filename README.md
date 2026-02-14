@@ -24,6 +24,7 @@ A visual tool for managing and generating professional LaTeX CVs. No programming
 
 ## Quick Start
 
+
 ### Windows (Easiest)
 
 1. Double-click **`Start CV Manager.bat`**
