@@ -29,7 +29,7 @@ A visual tool for managing and generating professional LaTeX CVs. No programming
 1. Double-click **`Start CV Manager.bat`**
    - On first run, it installs dependencies automatically
 2. Your browser opens to `http://localhost:5173`
-3. Start editing your CV!
+3. Start editing your CV
 
 ### Manual Start
 
