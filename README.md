@@ -101,7 +101,7 @@ CV Manager automatically checks for updates on startup via the GitHub API — no
 - When a new version is available, the **"🔄 Update Available"** button appears in the sidebar
 - Click it to pull the latest changes (requires Git to be installed)
 - If the directory is not yet a Git repository, it will be initialized automatically
-- Your data in `server/data/`, `server/assets/`, and `server/output/` is backed up and restored during updates
+- Your data in `server/data/`, `server/assets/`, and `server/output/` is backed up and restored during updates.
 
 ## Stopping the Server
 
