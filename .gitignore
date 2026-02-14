@@ -5,4 +5,5 @@ server/output/*.tex
 server/assets/*
 !server/assets/.gitkeep
 !server/output/.gitkeep
+server/data/.update-state.json
 *.log

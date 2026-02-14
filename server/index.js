@@ -294,19 +294,20 @@ app.get('/api/check-update', async (_req, res) => {
         } catch {
           state.lastCommitSha = remoteSha; // fallback: assume up-to-date
         }
-      } else {
-        // Fresh install (e.g. downloaded as ZIP) — assume current version is latest
-        state.lastCommitSha = remoteSha;
       }
+      // For non-git dirs: leave lastCommitSha unset — we can't determine the local version
       state.lastCheckTime = new Date().toISOString();
       saveUpdateState(state);
     }
 
-    const available = remoteSha !== state.lastCommitSha;
+    // If no local SHA is known (non-git copy), always show update available
+    const available = !state.lastCommitSha || remoteSha !== state.lastCommitSha;
     res.json({
       available,
-      message: available ? 'An update is available!' : 'You are up to date.',
-      currentSha: state.lastCommitSha?.substring(0, 7),
+      message: available
+        ? (state.lastCommitSha ? 'An update is available!' : 'Version unknown — click Update to set up auto-updates.')
+        : 'You are up to date.',
+      currentSha: state.lastCommitSha?.substring(0, 7) || 'unknown',
       remoteSha: remoteSha?.substring(0, 7),
     });
   } catch (err) {
