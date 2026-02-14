@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const { execSync } = require('child_process');
 const { generateLatex, getTemplateVersion } = require('./latex');
 const multer = require('multer');
@@ -219,42 +220,156 @@ app.get('/api/pdfs', (_req, res) => {
 // ── Auto-update ─────────────────────────────────────────────────────────────
 const UPDATE_REPO = 'https://github.com/gerakolix/CV-Manager.git';
 const ROOT_DIR = path.join(__dirname, '..');
+const UPDATE_STATE_FILE = path.join(DATA_DIR, '.update-state.json');
 
-app.get('/api/check-update', (_req, res) => {
-  try {
-    // Check if git is available and this is a git repo
-    const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
-    if (!isGitRepo) {
-      return res.json({ available: false, message: 'Not a git repository. Download updates manually.' });
+// Directories containing user data that must be preserved during updates
+const USER_DATA_DIRS = ['server/data', 'server/assets', 'server/output'];
+
+function getUpdateState() {
+  try { return JSON.parse(fs.readFileSync(UPDATE_STATE_FILE, 'utf8')); }
+  catch { return {}; }
+}
+
+function saveUpdateState(state) {
+  fs.writeFileSync(UPDATE_STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+}
+
+function copyDirSync(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirSync(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
     }
-    execSync('git fetch origin', { cwd: ROOT_DIR, timeout: 15000, stdio: 'pipe' });
-    const status = execSync('git status -uno', { cwd: ROOT_DIR, timeout: 5000, stdio: 'pipe' }).toString();
-    const behind = status.includes('behind');
+  }
+}
+
+function isGitAvailable() {
+  try { execSync('git --version', { timeout: 5000, stdio: 'pipe' }); return true; }
+  catch { return false; }
+}
+
+// Fetch latest commit SHA from GitHub API (works without git or .git)
+function getRemoteLatestSha(repoUrl) {
+  return new Promise((resolve, reject) => {
+    const match = repoUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
+    if (!match) return reject(new Error('Cannot parse repo URL'));
+    const [, owner, repo] = match;
+    const options = {
+      hostname: 'api.github.com',
+      path: `/repos/${owner}/${repo}/commits?per_page=1&sha=main`,
+      headers: { 'User-Agent': 'CV-Manager' },
+    };
+    https.get(options, (response) => {
+      let data = '';
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => {
+        try {
+          const commits = JSON.parse(data);
+          if (Array.isArray(commits) && commits.length > 0) {
+            resolve(commits[0].sha);
+          } else {
+            reject(new Error(commits.message || 'No commits found'));
+          }
+        } catch (e) { reject(e); }
+      });
+    }).on('error', reject);
+  });
+}
+
+app.get('/api/check-update', async (_req, res) => {
+  try {
+    const state = getUpdateState();
+    const remoteSha = await getRemoteLatestSha(UPDATE_REPO);
+
+    // Initialize stored SHA on first check
+    if (!state.lastCommitSha) {
+      const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
+      if (isGitRepo) {
+        try {
+          state.lastCommitSha = execSync('git rev-parse HEAD', { cwd: ROOT_DIR, timeout: 5000, stdio: 'pipe' }).toString().trim();
+        } catch {
+          state.lastCommitSha = remoteSha; // fallback: assume up-to-date
+        }
+      } else {
+        // Fresh install (e.g. downloaded as ZIP) — assume current version is latest
+        state.lastCommitSha = remoteSha;
+      }
+      state.lastCheckTime = new Date().toISOString();
+      saveUpdateState(state);
+    }
+
+    const available = remoteSha !== state.lastCommitSha;
     res.json({
-      available: behind,
-      message: behind ? 'An update is available!' : 'You are up to date.',
+      available,
+      message: available ? 'An update is available!' : 'You are up to date.',
+      currentSha: state.lastCommitSha?.substring(0, 7),
+      remoteSha: remoteSha?.substring(0, 7),
     });
   } catch (err) {
     res.json({ available: false, message: 'Could not check for updates: ' + err.message });
   }
 });
 
-app.post('/api/update', (_req, res) => {
+app.post('/api/update', async (_req, res) => {
   try {
-    const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
-    if (!isGitRepo) {
-      return res.status(400).json({ error: 'Not a git repository.' });
+    if (!isGitAvailable()) {
+      return res.status(400).json({ error: 'Git is not installed. Please install Git and try again.' });
     }
-    // Stash any local changes to prevent conflicts with user data
-    execSync('git stash', { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' });
-    const output = execSync('git pull origin main', { cwd: ROOT_DIR, timeout: 30000, stdio: 'pipe' }).toString();
-    // Pop stash (may fail if no stash, that's fine)
-    try { execSync('git stash pop', { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' }); } catch (_e) { /* no stash */ }
+
+    const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
+
+    if (!isGitRepo) {
+      // ── Non-git directory: initialize git, backup user data, pull, restore ──
+      const backupDir = path.join(ROOT_DIR, '.update-backup-' + Date.now());
+      fs.mkdirSync(backupDir, { recursive: true });
+
+      // Backup user data
+      for (const dir of USER_DATA_DIRS) {
+        const srcDir = path.join(ROOT_DIR, dir);
+        if (fs.existsSync(srcDir)) {
+          copyDirSync(srcDir, path.join(backupDir, dir));
+        }
+      }
+
+      // Initialize git and pull
+      execSync('git init', { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' });
+      execSync(`git remote add origin ${UPDATE_REPO}`, { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' });
+      execSync('git fetch origin main', { cwd: ROOT_DIR, timeout: 30000, stdio: 'pipe' });
+      execSync('git checkout -f -B main origin/main', { cwd: ROOT_DIR, timeout: 15000, stdio: 'pipe' });
+
+      // Restore user data
+      for (const dir of USER_DATA_DIRS) {
+        const backupSrc = path.join(backupDir, dir);
+        const destDir = path.join(ROOT_DIR, dir);
+        if (fs.existsSync(backupSrc)) {
+          if (fs.existsSync(destDir)) fs.rmSync(destDir, { recursive: true, force: true });
+          copyDirSync(backupSrc, destDir);
+        }
+      }
+
+      // Clean up backup
+      fs.rmSync(backupDir, { recursive: true, force: true });
+    } else {
+      // ── Existing git repo: stash and pull ──
+      execSync('git stash', { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' });
+      execSync('git pull origin main', { cwd: ROOT_DIR, timeout: 30000, stdio: 'pipe' });
+      try { execSync('git stash pop', { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' }); } catch (_e) { /* no stash */ }
+    }
+
+    // Save new commit SHA
+    const newSha = execSync('git rev-parse HEAD', { cwd: ROOT_DIR, timeout: 5000, stdio: 'pipe' }).toString().trim();
+    saveUpdateState({ lastCommitSha: newSha, lastUpdateTime: new Date().toISOString() });
+
     // Reinstall dependencies in case package.json changed
     try { execSync('npm install', { cwd: ROOT_DIR, timeout: 60000, stdio: 'pipe' }); } catch (_e) { /* best effort */ }
-    res.json({ ok: true, message: 'Updated successfully! Please restart CV Manager.\n\n' + output });
+
+    res.json({ ok: true, message: 'Updated successfully! Please restart CV Manager.' });
   } catch (err) {
-    // Try to restore stash on failure
+    // Try to restore stash on failure for git repos
     try { execSync('git stash pop', { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' }); } catch (_e) { /* ignore */ }
     res.status(500).json({ error: 'Update failed: ' + err.message });
   }

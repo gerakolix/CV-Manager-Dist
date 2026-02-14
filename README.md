@@ -95,7 +95,13 @@ All your data is stored as JSON files in `server/data/`:
 
 ## Updating
 
-If set up as a Git repository, click the **"🔄 Update Available"** button in the sidebar when an update is detected. Your data in `server/data/` and `server/assets/` is preserved during updates.
+CV Manager automatically checks for updates on startup via the GitHub API — no `.git` directory required.
+
+- The last known commit SHA is stored in `server/data/.update-state.json`
+- When a new version is available, the **"🔄 Update Available"** button appears in the sidebar
+- Click it to pull the latest changes (requires Git to be installed)
+- If the directory is not yet a Git repository, it will be initialized automatically
+- Your data in `server/data/`, `server/assets/`, and `server/output/` is backed up and restored during updates
 
 ## Stopping the Server
 

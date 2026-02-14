@@ -12,9 +12,5 @@ If Not fso.FolderExists(scriptDir & "\node_modules") Then
     oShell.Run "cmd /c npm install", 1, True
 End If
 
-' Start CV Manager in hidden window
+' Start CV Manager in hidden window (browser opens automatically via Vite)
 oShell.Run "cmd /c npm run dev", 0, False
-
-' Wait 3 seconds then open browser
-WScript.Sleep 3000
-oShell.Run "http://localhost:5173", 1
