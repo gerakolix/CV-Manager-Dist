@@ -19,6 +19,7 @@ A visual tool for managing and generating professional LaTeX CVs. No programming
 
 ## Requirements
 
+
 - **Node.js** (v16 or newer) — [Download](https://nodejs.org/)
 - **MiKTeX** or **TeX Live** (LaTeX distribution) — [MiKTeX Download](https://miktex.org/download)
 
