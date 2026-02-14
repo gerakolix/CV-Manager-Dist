@@ -1,0 +1,277 @@
+const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const { generateLatex, getTemplateVersion } = require('./latex');
+const multer = require('multer');
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+const DATA_DIR = path.join(__dirname, 'data');
+const OUTPUT_DIR = path.join(__dirname, 'output');
+const ASSETS_DIR = path.join(__dirname, 'assets');
+
+// Ensure output & assets dirs exist
+if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+if (!fs.existsSync(ASSETS_DIR)) fs.mkdirSync(ASSETS_DIR, { recursive: true });
+
+// Helpers
+const readJson = (file) => JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), 'utf8'));
+const writeJson = (file, data) => fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(data, null, 2), 'utf8');
+
+// ── Image Upload ─────────────────────────────────────────────────────────────
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, ASSETS_DIR),
+    filename: (_req, file, cb) => cb(null, file.originalname),
+  }),
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(jpe?g|png|pdf|svg)$/i;
+    cb(null, allowed.test(path.extname(file.originalname)));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+app.post('/api/upload-photo', upload.single('photo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const profile = readJson('profile.json');
+  profile.photo = req.file.originalname;
+  writeJson('profile.json', profile);
+  res.json({ ok: true, filename: req.file.originalname });
+});
+
+app.post('/api/upload-logo', upload.single('logo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({
+    ok: true,
+    filename: req.file.originalname,
+    tip: 'For best results, use a logo with ~3.3:1 width:height ratio (e.g., 330×100px). Supported: PDF, PNG, JPG, SVG.',
+  });
+});
+
+// ── Profile ──────────────────────────────────────────────────────────────────
+app.get('/api/profile', (_req, res) => res.json(readJson('profile.json')));
+app.put('/api/profile', (req, res) => { writeJson('profile.json', req.body); res.json({ ok: true }); });
+
+// ── Sections ─────────────────────────────────────────────────────────────────
+app.get('/api/sections', (_req, res) => res.json(readJson('sections.json')));
+app.put('/api/sections', (req, res) => { writeJson('sections.json', req.body); res.json({ ok: true }); });
+
+// ── Configurations ───────────────────────────────────────────────────────────
+app.get('/api/configs', (_req, res) => res.json(readJson('configs.json')));
+
+app.post('/api/configs', (req, res) => {
+  const configs = readJson('configs.json');
+  const newConfig = { ...req.body, id: 'config-' + Date.now() };
+  configs.push(newConfig);
+  writeJson('configs.json', configs);
+  res.json(newConfig);
+});
+
+app.put('/api/configs/:id', (req, res) => {
+  let configs = readJson('configs.json');
+  configs = configs.map(c => c.id === req.params.id ? { ...req.body, id: req.params.id } : c);
+  writeJson('configs.json', configs);
+  res.json({ ok: true });
+});
+
+app.delete('/api/configs/:id', (req, res) => {
+  let configs = readJson('configs.json');
+  configs = configs.filter(c => c.id !== req.params.id);
+  writeJson('configs.json', configs);
+  res.json({ ok: true });
+});
+
+// ── Archive ──────────────────────────────────────────────────────────────────
+app.get('/api/archive', (_req, res) => res.json(readJson('archive.json')));
+
+app.post('/api/archive', (req, res) => {
+  const archive = readJson('archive.json');
+  const entry = { ...req.body, id: 'arch-' + Date.now(), createdAt: new Date().toISOString() };
+  archive.push(entry);
+  writeJson('archive.json', archive);
+  res.json(entry);
+});
+
+app.put('/api/archive/:id', (req, res) => {
+  let archive = readJson('archive.json');
+  archive = archive.map(a => a.id === req.params.id ? { ...req.body, id: req.params.id } : a);
+  writeJson('archive.json', archive);
+  res.json({ ok: true });
+});
+
+app.delete('/api/archive/:id', (req, res) => {
+  let archive = readJson('archive.json');
+  const entry = archive.find(a => a.id === req.params.id);
+  if (entry && entry.filename) {
+    const pdfPath = path.join(OUTPUT_DIR, entry.filename);
+    if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+  }
+  archive = archive.filter(a => a.id !== req.params.id);
+  writeJson('archive.json', archive);
+  res.json({ ok: true });
+});
+
+// ── Generate PDF ─────────────────────────────────────────────────────────────
+app.post('/api/generate', (req, res) => {
+  try {
+    const { configId, company, position, notes, tags } = req.body;
+    const profile = readJson('profile.json');
+    const sections = readJson('sections.json');
+    const configs = readJson('configs.json');
+    const config = configs.find(c => c.id === configId);
+    if (!config) return res.status(404).json({ error: 'Configuration not found' });
+
+    const latex = generateLatex(profile, sections, config);
+
+    // Create temp dir
+    const tempDir = path.join(OUTPUT_DIR, 'temp-' + Date.now());
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    // Write tex file
+    fs.writeFileSync(path.join(tempDir, 'cv.tex'), latex, 'utf8');
+
+    // Copy assets (image + logos)
+    if (fs.existsSync(ASSETS_DIR)) {
+      fs.readdirSync(ASSETS_DIR).forEach(f => {
+        const src = path.join(ASSETS_DIR, f);
+        if (fs.statSync(src).isFile()) {
+          fs.copyFileSync(src, path.join(tempDir, f));
+        }
+      });
+    }
+
+    // Run pdflatex twice (for references)
+    try {
+      execSync('pdflatex -interaction=nonstopmode cv.tex', { cwd: tempDir, timeout: 30000, stdio: 'pipe' });
+      execSync('pdflatex -interaction=nonstopmode cv.tex', { cwd: tempDir, timeout: 30000, stdio: 'pipe' });
+    } catch (latexErr) {
+      const pdfExists = fs.existsSync(path.join(tempDir, 'cv.pdf'));
+      if (!pdfExists) {
+        const logFile = path.join(tempDir, 'cv.log');
+        const logContent = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').slice(-2000) : '';
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        return res.status(500).json({ error: 'LaTeX compilation failed', log: logContent });
+      }
+    }
+
+    // Generate filename from profile name (dynamic)
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const safeName = (company || config.name || 'cv').replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_');
+    const profileName = (profile.name || 'CV').replace(/[^a-zA-Z0-9äöüÄÖÜß ]/g, '').replace(/\s+/g, '_');
+    const filename = `CV_${profileName}_${safeName}_${timestamp}.pdf`;
+
+    // Move PDF
+    fs.copyFileSync(path.join(tempDir, 'cv.pdf'), path.join(OUTPUT_DIR, filename));
+
+    // Cleanup temp dir
+    fs.rmSync(tempDir, { recursive: true, force: true });
+
+    // Add to archive
+    const archive = readJson('archive.json');
+    const archiveEntry = {
+      id: 'arch-' + Date.now(),
+      configId,
+      configName: config.name,
+      filename,
+      company: company || '',
+      position: position || '',
+      notes: notes || '',
+      tags: tags || [],
+      language: config.language,
+      templateVersion: getTemplateVersion(),
+      createdAt: new Date().toISOString()
+    };
+    archive.push(archiveEntry);
+    writeJson('archive.json', archive);
+
+    res.json({ ok: true, filename, archiveEntry });
+  } catch (err) {
+    console.error('Generate error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Serve generated PDFs ─────────────────────────────────────────────────────
+app.get('/api/pdfs/:filename', (req, res) => {
+  const pdfPath = path.join(OUTPUT_DIR, req.params.filename);
+  if (fs.existsSync(pdfPath)) {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.sendFile(pdfPath);
+  } else {
+    res.status(404).json({ error: 'PDF not found' });
+  }
+});
+
+// ── Template Version ─────────────────────────────────────────────────────────
+app.get('/api/template-version', (_req, res) => res.json({ version: getTemplateVersion() }));
+
+// ── List available PDFs ──────────────────────────────────────────────────────
+app.get('/api/pdfs', (_req, res) => {
+  if (!fs.existsSync(OUTPUT_DIR)) return res.json([]);
+  const files = fs.readdirSync(OUTPUT_DIR).filter(f => f.endsWith('.pdf'));
+  res.json(files);
+});
+
+// ── Auto-update ─────────────────────────────────────────────────────────────
+const UPDATE_REPO = 'https://github.com/gerakolix/CV-Manager.git';
+const ROOT_DIR = path.join(__dirname, '..');
+
+app.get('/api/check-update', (_req, res) => {
+  try {
+    // Check if git is available and this is a git repo
+    const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
+    if (!isGitRepo) {
+      return res.json({ available: false, message: 'Not a git repository. Download updates manually.' });
+    }
+    execSync('git fetch origin', { cwd: ROOT_DIR, timeout: 15000, stdio: 'pipe' });
+    const status = execSync('git status -uno', { cwd: ROOT_DIR, timeout: 5000, stdio: 'pipe' }).toString();
+    const behind = status.includes('behind');
+    res.json({
+      available: behind,
+      message: behind ? 'An update is available!' : 'You are up to date.',
+    });
+  } catch (err) {
+    res.json({ available: false, message: 'Could not check for updates: ' + err.message });
+  }
+});
+
+app.post('/api/update', (_req, res) => {
+  try {
+    const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
+    if (!isGitRepo) {
+      return res.status(400).json({ error: 'Not a git repository.' });
+    }
+    // Stash any local changes to prevent conflicts with user data
+    execSync('git stash', { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' });
+    const output = execSync('git pull origin main', { cwd: ROOT_DIR, timeout: 30000, stdio: 'pipe' }).toString();
+    // Pop stash (may fail if no stash, that's fine)
+    try { execSync('git stash pop', { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' }); } catch (_e) { /* no stash */ }
+    // Reinstall dependencies in case package.json changed
+    try { execSync('npm install', { cwd: ROOT_DIR, timeout: 60000, stdio: 'pipe' }); } catch (_e) { /* best effort */ }
+    res.json({ ok: true, message: 'Updated successfully! Please restart CV Manager.\n\n' + output });
+  } catch (err) {
+    // Try to restore stash on failure
+    try { execSync('git stash pop', { cwd: ROOT_DIR, timeout: 10000, stdio: 'pipe' }); } catch (_e) { /* ignore */ }
+    res.status(500).json({ error: 'Update failed: ' + err.message });
+  }
+});
+
+// ── Shutdown endpoint ───────────────────────────────────────────────────────
+app.post('/api/shutdown', (_req, res) => {
+  console.log('\n⚠️  Shutdown requested via API');
+  res.json({ ok: true, message: 'Server shutting down...' });
+  setTimeout(() => {
+    console.log('👋 CV Manager stopped\n');
+    process.exit(0);
+  }, 500);
+});
+
+const PORT = 3001;
+const server = app.listen(PORT, () => {
+  console.log(`\n  CV Manager API running on http://localhost:${PORT}`);
+  console.log(`  Frontend at http://localhost:5173\n`);
+});

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+server/output/*.pdf
+server/output/*.tex
+server/assets/*
+!server/assets/.gitkeep
+!server/output/.gitkeep
+*.log

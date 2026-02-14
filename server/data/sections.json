@@ -1,0 +1,83 @@
+{
+  "experience": {
+    "labelEn": "Professional Experience",
+    "labelDe": "Berufserfahrung",
+    "type": "entries",
+    "items": [
+      {
+        "id": "exp-1",
+        "datesEn": "01/2023 -- Present",
+        "datesDe": "01/2023 -- Heute",
+        "titleEn": "Job Title | Company Name",
+        "titleDe": "Berufsbezeichnung | Firmenname",
+        "subtitleEn": "",
+        "subtitleDe": "",
+        "descriptionEn": "Describe your responsibilities and achievements here.",
+        "descriptionDe": "Beschreiben Sie hier Ihre Aufgaben und Erfolge."
+      }
+    ]
+  },
+  "education": {
+    "labelEn": "Education",
+    "labelDe": "Ausbildung",
+    "type": "entries",
+    "items": [
+      {
+        "id": "edu-1",
+        "datesEn": "10/2018 -- 06/2022",
+        "datesDe": "10/2018 -- 06/2022",
+        "titleEn": "Degree | University Name",
+        "titleDe": "Abschluss | Universität",
+        "subtitleEn": "",
+        "subtitleDe": "",
+        "descriptionEn": "Relevant coursework or thesis details.",
+        "descriptionDe": "Relevante Kurse oder Abschlussarbeit."
+      }
+    ]
+  },
+  "publications": {
+    "labelEn": "Publications",
+    "labelDe": "Publikationen",
+    "type": "publications",
+    "items": []
+  },
+  "softwareProjects": {
+    "labelEn": "Software Projects",
+    "labelDe": "Softwareprojekte",
+    "type": "projects",
+    "items": []
+  },
+  "volunteering": {
+    "labelEn": "Volunteering",
+    "labelDe": "Ehrenamt",
+    "type": "entries",
+    "items": []
+  },
+  "skills": {
+    "labelEn": "Skills",
+    "labelDe": "Kenntnisse",
+    "type": "skills",
+    "items": [
+      {
+        "id": "skill-1",
+        "labelEn": "Languages",
+        "labelDe": "Sprachen",
+        "valueEn": "English (Native), German (B2)",
+        "valueDe": "Englisch (Muttersprache), Deutsch (B2)"
+      },
+      {
+        "id": "skill-2",
+        "labelEn": "Programming",
+        "labelDe": "Programmierung",
+        "valueEn": "Python, JavaScript, Java",
+        "valueDe": "Python, JavaScript, Java"
+      }
+    ]
+  },
+  "awards": {
+    "labelEn": "Awards & Scholarships",
+    "labelDe": "Auszeichnungen & Stipendien",
+    "type": "entries",
+    "items": []
+  }
+}
