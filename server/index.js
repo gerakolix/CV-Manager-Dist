@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
 const { execSync } = require('child_process');
 const { generateLatex, getTemplateVersion } = require('./latex');
 const multer = require('multer');
@@ -252,45 +251,27 @@ function isGitAvailable() {
   catch { return false; }
 }
 
-// Fetch latest commit SHA from GitHub API (works without git or .git)
+// Fetch latest commit SHA via git ls-remote (works with private repos, uses system git credentials)
 function getRemoteLatestSha(repoUrl) {
-  return new Promise((resolve, reject) => {
-    const match = repoUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
-    if (!match) return reject(new Error('Cannot parse repo URL'));
-    const [, owner, repo] = match;
-    const options = {
-      hostname: 'api.github.com',
-      path: `/repos/${owner}/${repo}/commits?per_page=1&sha=main`,
-      headers: { 'User-Agent': 'CV-Manager' },
-    };
-    https.get(options, (response) => {
-      let data = '';
-      response.on('data', chunk => data += chunk);
-      response.on('end', () => {
-        try {
-          const commits = JSON.parse(data);
-          if (Array.isArray(commits) && commits.length > 0) {
-            resolve(commits[0].sha);
-          } else {
-            reject(new Error(commits.message || 'No commits found'));
-          }
-        } catch (e) { reject(e); }
-      });
-    }).on('error', reject);
-  });
+  const output = execSync(`git ls-remote ${repoUrl} refs/heads/main`, { timeout: 15000, stdio: 'pipe' }).toString().trim();
+  const sha = output.split(/\s/)[0];
+  if (!sha) throw new Error('Could not parse remote SHA');
+  return sha;
 }
 
-app.get('/api/check-update', async (_req, res) => {
+app.get('/api/check-update', (_req, res) => {
   try {
     const state = getUpdateState();
     const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
 
-    // Try to fetch remote SHA, but don't let failure block everything
+    // Try to fetch remote SHA via git ls-remote (requires git)
     let remoteSha = null;
-    try {
-      remoteSha = await getRemoteLatestSha(UPDATE_REPO);
-    } catch (apiErr) {
-      console.warn('GitHub API check failed:', apiErr.message);
+    if (isGitAvailable()) {
+      try {
+        remoteSha = getRemoteLatestSha(UPDATE_REPO);
+      } catch (gitErr) {
+        console.warn('Remote SHA check failed:', gitErr.message);
+      }
     }
 
     // Initialize stored SHA on first check
@@ -341,7 +322,7 @@ app.get('/api/check-update', async (_req, res) => {
   }
 });
 
-app.post('/api/update', async (_req, res) => {
+app.post('/api/update', (_req, res) => {
   try {
     if (!isGitAvailable()) {
       return res.status(400).json({ error: 'Git is not installed. Please install Git and try again.' });
