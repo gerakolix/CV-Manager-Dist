@@ -218,7 +218,7 @@ app.get('/api/pdfs', (_req, res) => {
 });
 
 // ── Auto-update ─────────────────────────────────────────────────────────────
-const UPDATE_REPO = 'https://github.com/gerakolix/CV-Manager.git';
+const UPDATE_REPO = 'https://github.com/gerakolix/CV-Manager-Dist.git';
 const ROOT_DIR = path.join(__dirname, '..');
 const UPDATE_STATE_FILE = path.join(DATA_DIR, '.update-state.json');
 
@@ -283,16 +283,23 @@ function getRemoteLatestSha(repoUrl) {
 app.get('/api/check-update', async (_req, res) => {
   try {
     const state = getUpdateState();
-    const remoteSha = await getRemoteLatestSha(UPDATE_REPO);
+    const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
+
+    // Try to fetch remote SHA, but don't let failure block everything
+    let remoteSha = null;
+    try {
+      remoteSha = await getRemoteLatestSha(UPDATE_REPO);
+    } catch (apiErr) {
+      console.warn('GitHub API check failed:', apiErr.message);
+    }
 
     // Initialize stored SHA on first check
     if (!state.lastCommitSha) {
-      const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
       if (isGitRepo) {
         try {
           state.lastCommitSha = execSync('git rev-parse HEAD', { cwd: ROOT_DIR, timeout: 5000, stdio: 'pipe' }).toString().trim();
         } catch {
-          state.lastCommitSha = remoteSha; // fallback: assume up-to-date
+          // git repo but can't read HEAD — leave unset
         }
       }
       // For non-git dirs: leave lastCommitSha unset — we can't determine the local version
@@ -300,18 +307,37 @@ app.get('/api/check-update', async (_req, res) => {
       saveUpdateState(state);
     }
 
-    // If no local SHA is known (non-git copy), always show update available
-    const available = !state.lastCommitSha || remoteSha !== state.lastCommitSha;
+    // Determine if update is available
+    let available;
+    let message;
+    if (!state.lastCommitSha) {
+      // No local version known (non-git copy) — always offer update/setup
+      available = true;
+      message = 'Version unknown — click Update to set up auto-updates.';
+    } else if (!remoteSha) {
+      // Couldn't reach GitHub API — can't determine if update exists
+      available = false;
+      message = 'Could not reach update server.';
+    } else {
+      available = remoteSha !== state.lastCommitSha;
+      message = available ? 'An update is available!' : 'You are up to date.';
+    }
+
     res.json({
       available,
-      message: available
-        ? (state.lastCommitSha ? 'An update is available!' : 'Version unknown — click Update to set up auto-updates.')
-        : 'You are up to date.',
+      message,
       currentSha: state.lastCommitSha?.substring(0, 7) || 'unknown',
-      remoteSha: remoteSha?.substring(0, 7),
+      remoteSha: remoteSha?.substring(0, 7) || 'unknown',
     });
   } catch (err) {
-    res.json({ available: false, message: 'Could not check for updates: ' + err.message });
+    // Fallback: if no .git dir, still suggest update setup
+    const isGitRepo = fs.existsSync(path.join(ROOT_DIR, '.git'));
+    res.json({
+      available: !isGitRepo,
+      message: !isGitRepo
+        ? 'Version unknown — click Update to set up auto-updates.'
+        : 'Could not check for updates: ' + err.message,
+    });
   }
 });
 
