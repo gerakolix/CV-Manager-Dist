@@ -138,18 +138,70 @@ export default function App() {
     }
   };
 
+  const [serverStopped, setServerStopped] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+
   const handleShutdown = async () => {
     if (!window.confirm('Stop the CV Manager server?\n\nYou will need to restart it manually.')) return;
     try {
       await api.shutdownServer();
       showToast('Server shutting down...', 'info');
-      setTimeout(() => {
-        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui;flex-direction:column;gap:1rem;"><h1>CV Manager Stopped</h1><p>Close this tab or <a href="/" onclick="location.reload()">reload</a> to reconnect.</p></div>';
-      }, 1000);
+      setTimeout(() => setServerStopped(true), 1000);
     } catch (err) {
       showToast('Shutdown initiated', 'info');
+      setTimeout(() => setServerStopped(true), 1000);
     }
   };
+
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    const maxAttempts = 20;
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        await api.getProfile();
+        // Server is back!
+        setServerStopped(false);
+        setReconnecting(false);
+        loadData();
+        showToast('Reconnected to server!', 'success');
+        return;
+      } catch {
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+    setReconnecting(false);
+    showToast('Could not reconnect. Make sure the server is running.', 'error');
+  };
+
+  if (serverStopped) {
+    return (
+      <div className="loading-screen">
+        <div style={{ textAlign: 'center', maxWidth: 480 }}>
+          <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>⏻</span>
+          <h1 style={{ fontSize: '1.6rem', color: 'var(--primary)', marginBottom: '0.5rem' }}>CV Manager Stopped</h1>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>The server has been shut down.</p>
+          <button
+            className="btn btn-primary"
+            style={{ fontSize: '1rem', padding: '0.75rem 2rem', marginBottom: '1rem' }}
+            onClick={handleReconnect}
+            disabled={reconnecting}
+          >
+            {reconnecting ? (
+              <><span className="spinner" style={{ width: 16, height: 16, borderWidth: 2, display: 'inline-block', verticalAlign: 'middle', marginRight: '0.5rem' }} /> Reconnecting...</>
+            ) : '🔄 Reconnect to Server'}
+          </button>
+          <div className="card" style={{ textAlign: 'left', marginTop: '1rem', padding: '1rem 1.25rem' }}>
+            <p style={{ fontWeight: 600, marginBottom: '0.5rem', fontSize: '0.9rem' }}>To restart the server:</p>
+            <ol style={{ paddingLeft: '1.25rem', color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.8 }}>
+              <li>Run <code style={{ background: 'var(--bg)', padding: '0.15rem 0.4rem', borderRadius: 4 }}>Start CV Manager.bat</code> from the project folder</li>
+              <li>Wait a moment for the server to start</li>
+              <li>Click <strong>Reconnect to Server</strong> above</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

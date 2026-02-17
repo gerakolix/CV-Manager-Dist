@@ -344,18 +344,18 @@ Rules:
       <div className="card mb-2">
         <div className="form-row-3">
           <div className="form-group">
-            <label className="form-label">Configuration Name</label>
+            <label className="form-label">Configuration Name <span className="info-icon" data-tip="A descriptive name for this CV variant. Tip: include the company and role, e.g. 'Google SWE Application'.">ℹ️</span></label>
             <input className="form-input" value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="form-label">Language</label>
+            <label className="form-label">Language <span className="info-icon" data-tip="The output language of the generated PDF. Section headings, dates, and descriptions will use the selected language variant.">ℹ️</span></label>
             <select className="form-select" value={language} onChange={e => setLanguage(e.target.value)}>
               <option value="en">English</option>
               <option value="de">Deutsch</option>
             </select>
           </div>
           <div className="form-group">
-            <label className="form-label">Company Logos</label>
+            <label className="form-label">Company Logos <span className="info-icon" data-tip="When enabled, company/institution logos are shown next to entries instead of the organization name as text. Upload logos in the CV Entries tab.">ℹ️</span></label>
             <div className="flex items-center gap-1" style={{ marginTop: '0.35rem' }}>
               <label className="toggle-switch">
                 <input type="checkbox" checked={useLogos} onChange={e => setUseLogos(e.target.checked)} />
@@ -368,7 +368,7 @@ Rules:
         {hasPublications && (
           <div className="form-row" style={{ maxWidth: '400px' }}>
             <div className="form-group">
-              <label className="form-label">Citation Style</label>
+              <label className="form-label">Citation Style <span className="info-icon" data-tip="Determines how publications are formatted in the PDF (e.g. APA uses author-year, IEEE uses numbered references).">ℹ️</span></label>
               <select className="form-select" value={citationStyle} onChange={e => setCitationStyle(e.target.value)}>
                 <option value="apa">APA (Author-Year)</option>
                 <option value="ieee">IEEE (Numbered)</option>
@@ -384,7 +384,7 @@ Rules:
       <div className="card mb-2">
         <div className="flex items-center gap-1" style={{ cursor: 'pointer' }} onClick={() => setShowProfileOverrides(!showProfileOverrides)}>
           <h3 style={{ flex: 1, color: 'var(--primary)', margin: 0 }}>
-            👤 Profile Overrides
+            👤 Profile Overrides <span className="info-icon" data-tip="Override your default profile details (email, phone, photo, location) for this specific configuration only. Useful when applying to different regions or roles.">ℹ️</span>
             {Object.keys(profileOverrides).length > 0 && (
               <span className="override-badge" style={{ marginLeft: '0.5rem' }}>{Object.keys(profileOverrides).length} customized</span>
             )}
@@ -479,7 +479,7 @@ Rules:
       {/* Section Order + Entry Selection */}
       <div className="card">
         <h3 style={{ marginBottom: '0.75rem', color: 'var(--primary)' }}>
-          Sections & Entries
+          Sections & Entries <span className="info-icon" data-tip="Choose which CV sections and individual entries to include in this configuration. Drag to reorder, check/uncheck to include/exclude, and use ✏️ Edit to customize text for this specific CV.">ℹ️</span>
           <span className="text-sm text-muted" style={{ fontWeight: 400, marginLeft: '0.75rem' }}>
             Drag to reorder sections and entries. Click ✏️ Edit to customize text inline.
           </span>

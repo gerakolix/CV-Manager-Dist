@@ -59,6 +59,31 @@ export default function ConfigsPage({ configs, sections, onEdit, onDelete, onSav
     }
   };
 
+  const parseConfigNameForMeta = (configId) => {
+    const config = configs.find(c => c.id === configId);
+    if (!config) return { company: '', position: '', notes: '', tags: '' };
+    const name = config.name || '';
+    // Try common patterns: "Company - Position", "Company Position", or just use config name
+    let company = '';
+    let position = '';
+    if (name.includes(' - ')) {
+      const parts = name.split(' - ');
+      company = parts[0].trim();
+      position = parts.slice(1).join(' - ').trim();
+    } else if (name.includes(' — ')) {
+      const parts = name.split(' — ');
+      company = parts[0].trim();
+      position = parts.slice(1).join(' — ').trim();
+    } else if (name.includes(' | ')) {
+      const parts = name.split(' | ');
+      company = parts[0].trim();
+      position = parts.slice(1).join(' | ').trim();
+    } else {
+      company = name;
+    }
+    return { company, position, notes: '', tags: '' };
+  };
+
   const countEntries = (config) => {
     let total = 0;
     for (const ids of Object.values(config.enabledEntries || {})) {
@@ -71,7 +96,7 @@ export default function ConfigsPage({ configs, sections, onEdit, onDelete, onSav
     <div>
       <div className="page-header">
         <h2>Configurations</h2>
-        <p>Create tailored CV configurations for different positions. Each configuration selects which entries to include and allows custom descriptions.</p>
+        <p>Create tailored CV configurations for different positions. Each configuration selects which entries to include and allows custom descriptions. <span className="info-icon" data-tip="A configuration is a specific version of your CV tailored for a company or role. You can have multiple configurations with different entries, languages, and customized text.">ℹ️</span></p>
       </div>
 
       <div className="mb-2">
@@ -84,7 +109,7 @@ export default function ConfigsPage({ configs, sections, onEdit, onDelete, onSav
         <div className="card mb-2">
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Configuration Name</label>
+              <label className="form-label">Configuration Name <span className="info-icon" data-tip="Give this configuration a descriptive name, e.g. 'Google SWE Application' or 'Deutsche Bank Analyst'.">ℹ️</span></label>
               <input
                 className="form-input"
                 value={newName}
@@ -94,7 +119,7 @@ export default function ConfigsPage({ configs, sections, onEdit, onDelete, onSav
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Language</label>
+              <label className="form-label">Language <span className="info-icon" data-tip="The language used for section headings, dates, and descriptions in the generated PDF.">ℹ️</span></label>
               <select className="form-select" value={newLang} onChange={e => setNewLang(e.target.value)}>
                 <option value="en">English</option>
                 <option value="de">Deutsch</option>
@@ -131,7 +156,7 @@ export default function ConfigsPage({ configs, sections, onEdit, onDelete, onSav
               </div>
               <div className="config-actions">
                 <button className="btn btn-sm btn-primary" onClick={() => onEdit(config)}>Edit</button>
-                <button className="btn btn-sm btn-success" onClick={() => { setGenModal(config.id); setGenMeta({ company: '', position: '', notes: '', tags: '' }); setGenResult(null); }}>
+                <button className="btn btn-sm btn-success" onClick={() => { setGenModal(config.id); setGenMeta(parseConfigNameForMeta(config.id)); setGenResult(null); }}>
                   Generate PDF
                 </button>
                 <button className="btn btn-sm" onClick={() => handleDuplicate(config)}>Duplicate</button>
@@ -177,7 +202,7 @@ export default function ConfigsPage({ configs, sections, onEdit, onDelete, onSav
             ) : (
               <>
                 <p className="text-sm text-muted mb-2">
-                  Fill in the details below to label this PDF in your archive.
+                  Fill in the details below to label this PDF in your archive. <span className="info-icon" data-tip="These fields are for labeling only — they help you find this PDF later in the Archive. They don't change the PDF content.">ℹ️</span>
                 </p>
                 <div className="form-row">
                   <div className="form-group">
