@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getPDFUrl } from '../api';
+import { getPDFUrl, getTexUrl } from '../api';
 
 export default function ArchivePage({ archive, onDelete }) {
   const [search, setSearch] = useState('');
@@ -73,7 +73,7 @@ export default function ArchivePage({ archive, onDelete }) {
                   <th>Config</th>
                   <th>Tags</th>
                   <th>Notes</th>
-                  <th style={{ width: '120px' }}>Actions</th>
+                  <th style={{ width: '150px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -100,8 +100,18 @@ export default function ArchivePage({ archive, onDelete }) {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn btn-sm"
+                          title="Open PDF"
                         >
-                          Open
+                          PDF
+                        </a>
+                        <a
+                          href={getTexUrl(entry.filename.replace(/\.pdf$/, '.tex'))}
+                          download
+                          className="btn btn-sm"
+                          title="Download LaTeX source"
+                          style={{ opacity: 0.8 }}
+                        >
+                          TeX
                         </a>
                         <button
                           className="btn btn-sm btn-danger"

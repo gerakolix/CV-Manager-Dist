@@ -109,6 +109,9 @@ app.delete('/api/archive/:id', (req, res) => {
   if (entry && entry.filename) {
     const pdfPath = path.join(OUTPUT_DIR, entry.filename);
     if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+    // Also delete the .tex source file if it exists
+    const texPath = path.join(OUTPUT_DIR, entry.filename.replace(/\.pdf$/, '.tex'));
+    if (fs.existsSync(texPath)) fs.unlinkSync(texPath);
   }
   archive = archive.filter(a => a.id !== req.params.id);
   writeJson('archive.json', archive);
@@ -163,9 +166,11 @@ app.post('/api/generate', (req, res) => {
     const safeName = (company || config.name || 'cv').replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_');
     const profileName = (profile.name || 'CV').replace(/[^a-zA-Z0-9äöüÄÖÜß ]/g, '').replace(/\s+/g, '_');
     const filename = `CV_${profileName}_${safeName}_${timestamp}.pdf`;
+    const texFilename = filename.replace(/\.pdf$/, '.tex');
 
-    // Move PDF
+    // Move PDF and save .tex source
     fs.copyFileSync(path.join(tempDir, 'cv.pdf'), path.join(OUTPUT_DIR, filename));
+    fs.copyFileSync(path.join(tempDir, 'cv.tex'), path.join(OUTPUT_DIR, texFilename));
 
     // Cleanup temp dir
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -177,6 +182,7 @@ app.post('/api/generate', (req, res) => {
       configId,
       configName: config.name,
       filename,
+      texFilename,
       company: company || '',
       position: position || '',
       notes: notes || '',
@@ -203,6 +209,18 @@ app.get('/api/pdfs/:filename', (req, res) => {
     res.sendFile(pdfPath);
   } else {
     res.status(404).json({ error: 'PDF not found' });
+  }
+});
+
+// ── Serve generated .tex source files ────────────────────────────────────────
+app.get('/api/tex/:filename', (req, res) => {
+  const texPath = path.join(OUTPUT_DIR, req.params.filename);
+  if (fs.existsSync(texPath) && req.params.filename.endsWith('.tex')) {
+    res.setHeader('Content-Type', 'application/x-tex');
+    res.setHeader('Content-Disposition', `attachment; filename="${req.params.filename}"`);
+    res.sendFile(texPath);
+  } else {
+    res.status(404).json({ error: 'TeX file not found' });
   }
 });
 

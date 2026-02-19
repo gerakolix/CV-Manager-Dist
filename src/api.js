@@ -38,6 +38,9 @@ export const generatePDF = (data) => request('/generate', { method: 'POST', body
 // PDF URL helper
 export const getPDFUrl = (filename) => `${BASE}/pdfs/${encodeURIComponent(filename)}`;
 
+// TeX source URL helper
+export const getTexUrl = (filename) => `${BASE}/tex/${encodeURIComponent(filename)}`;
+
 // Upload photo (multipart form)
 export const uploadPhoto = async (file) => {
   const formData = new FormData();

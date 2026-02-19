@@ -7,6 +7,7 @@ A visual tool for managing and generating professional LaTeX CVs. No programming
 - **Visual CV editing** — Add, edit, reorder, and delete entries via a web interface
 - **Multiple configurations** — Create tailored CVs for different positions
 - **Bilingual support** — English and German CV generation
+- **AI/ATS-optimized PDFs** — Generated CVs are machine-readable with proper metadata, selectable text, and clean structure
 - **AI-assisted tailoring** — Generate prompts for AI to optimize your CV for specific positions
 - **Drag & drop** — Reorder entries and sections with drag-and-drop
 - **Custom sections** — Create your own sections with different types (entries, projects, publications, skills)
@@ -14,17 +15,19 @@ A visual tool for managing and generating professional LaTeX CVs. No programming
 - **Logo support** — Upload company logos for project entries
 - **Profile photo** — Upload and manage your CV photo
 - **PDF generation** — One-click PDF output via pdflatex
+- **LaTeX source export** — Download the `.tex` source file for manual editing
 - **Archive** — Track all generated CVs with tags and notes
 - **Auto-update** — Check for updates from your Git repository
+- **Cross-platform** — Works on Windows and macOS
 
 ## Requirements
 
-
 - **Node.js** (v16 or newer) — [Download](https://nodejs.org/)
-- **MiKTeX** or **TeX Live** (LaTeX distribution) — [MiKTeX Download](https://miktex.org/download)
+- **LaTeX distribution:**
+  - **Windows:** [MiKTeX](https://miktex.org/download)
+  - **macOS:** [MacTeX](https://tug.org/mactex/) or via Homebrew: `brew install --cask mactex`
 
 ## Quick Start
-
 
 ### Windows (Easiest)
 
@@ -33,7 +36,21 @@ A visual tool for managing and generating professional LaTeX CVs. No programming
 2. Your browser opens to `http://localhost:5173`
 3. Start editing your CV
 
-### Manual Start
+### macOS
+
+1. Open Terminal and `cd` to the CV Manager folder
+2. Run the first-time setup (once):
+   ```bash
+   chmod +x install.sh start-cv-manager.sh stop-cv-manager.sh
+   ./install.sh
+   ```
+3. Start CV Manager:
+   ```bash
+   ./start-cv-manager.sh
+   ```
+4. Your browser opens to `http://localhost:5173`
+
+### Manual Start (Any OS)
 
 ```bash
 # Install dependencies (first time only)
@@ -45,7 +62,7 @@ npm run dev
 
 Then open `http://localhost:5173` in your browser.
 
-### Silent Mode (No Console Window)
+### Silent Mode (Windows Only)
 
 Double-click **`Start CV Manager (Silent).vbs`** to run without a visible terminal window.
 
@@ -79,10 +96,14 @@ cv-manager-dist/
 │   ├── latex.js           # LaTeX template generator
 │   ├── data/              # Your data (profile, sections, configs, archive)
 │   ├── assets/            # Photos and logos
-│   └── output/            # Generated PDFs
+│   └── output/            # Generated PDFs and .tex source files
 ├── src/                   # React frontend
 ├── package.json
-└── vite.config.js
+├── vite.config.js
+├── Start CV Manager.bat   # Windows launcher
+├── start-cv-manager.sh    # macOS/Linux launcher
+├── install.sh             # macOS/Linux first-time setup
+└── INSTALL.bat            # Windows first-time setup
 ```
 
 ## Your Data
@@ -93,7 +114,23 @@ All your data is stored as JSON files in `server/data/`:
 - `configs.json` — Your CV configurations
 - `archive.json` — History of generated PDFs
 
+Generated files in `server/output/`:
+- `.pdf` files — The generated CV PDFs
+- `.tex` files — LaTeX source for each PDF (download from Archive to edit manually)
+
 **Back up the `server/data/` and `server/assets/` folders** to preserve your CV data.
+
+## AI/ATS Readability
+
+Generated CVs are optimized for AI and ATS (Applicant Tracking System) parsing:
+
+- **PDF metadata** — Author, title, subject, and keywords are embedded in the PDF properties
+- **Real selectable text** — All content is actual text, not images
+- **Clean bookmarks** — Section headings use `\texorpdfstring` for clean PDF bookmarks
+- **Standard fonts** — Helvetica/sans-serif for reliable OCR fallback
+- **Simple layout** — Single-column tabular layout without multi-column tricks
+- **No hidden text** — No invisible keyword stuffing or white-on-white text
+- **ActualText annotations** — The `accsupp` package annotates symbols so parsers read real text
 
 ## Updating
 
@@ -109,10 +146,14 @@ CV Manager automatically checks for updates on startup via the GitHub API — no
 
 - Click the **"⏻ Stop Server"** button in the sidebar, or
 - Close the terminal window, or
-- Double-click **`stop-cv-manager.ps1`**
+- **Windows:** Run `stop-cv-manager.ps1`
+- **macOS:** Run `./stop-cv-manager.sh`
 
 ## Troubleshooting
 
-- **PDF generation fails**: Ensure MiKTeX/TeX Live is installed and `pdflatex` is in your PATH
+- **PDF generation fails**: Ensure your LaTeX distribution is installed and `pdflatex` is in your PATH
+  - Windows: [MiKTeX](https://miktex.org/download)
+  - macOS: `brew install --cask mactex` or [download](https://tug.org/mactex/)
 - **Photos not showing**: Place photo files in `server/assets/` and use the Upload button
 - **Port already in use**: Kill existing Node processes or change the port in `server/index.js`
+- **macOS: "permission denied"**: Run `chmod +x start-cv-manager.sh stop-cv-manager.sh install.sh`

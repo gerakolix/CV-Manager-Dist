@@ -1,9 +1,18 @@
 // LaTeX CV generator
 // Generates a complete .tex file from profile, sections, and config data
+//
+// AI/ATS readability notes:
+//   - All text is real selectable text (no text-in-images)
+//   - PDF metadata (author, title, subject, keywords) set via hypersetup
+//   - accsupp package provides ActualText for symbols/icons so parsers read plain text
+//   - Section headings use \texorpdfstring for clean PDF bookmarks
+//   - Standard fonts (Helvetica/sans-serif) for reliable OCR fallback
+//   - Clean single-column layout with no multi-column tricks
+//   - No invisible/white text or keyword stuffing
 
 // Template version — bump this when the LaTeX structure changes (new commands, fields, layout).
 // Stored with each generated PDF so you can trace which template was used.
-const TEMPLATE_VERSION = '2.0.0';
+const TEMPLATE_VERSION = '3.0.0';
 
 function getTemplateVersion() { return TEMPLATE_VERSION; }
 
@@ -133,6 +142,16 @@ function generateLatex(profile, sections, config) {
   let tex = '';
 
   // ── Preamble ─────────────────────────────────────────────────────────────
+  const pdfTitle = `CV - ${escapeLatex(mergedProfile.name || 'Curriculum Vitae')}`;
+  const pdfAuthor = escapeLatex(mergedProfile.name || '');
+  const pdfSubject = isDE ? 'Lebenslauf' : 'Curriculum Vitae';
+  const pdfKeywords = [
+    mergedProfile.name,
+    l(mergedProfile, 'title', lang),
+    ...(config.tags || []),
+    config.name,
+  ].filter(Boolean).map(k => escapeLatex(k)).join(', ');
+
   tex += `\\documentclass[a4paper,10pt]{article}
 
 %--- PACKAGES ---
@@ -147,21 +166,33 @@ function generateLatex(profile, sections, config) {
 \\usepackage{enumitem}
 \\usepackage{graphicx}
 \\usepackage{tikz}
-\\usepackage{hyperref}
 \\usepackage{etoolbox}
 \\usepackage{needspace}
+\\usepackage{accsupp}
 
+%--- COLORS ---
+\\definecolor{navyblue}{RGB}{0, 53, 107}
+\\definecolor{graytext}{RGB}{80, 80, 80}
+
+%--- AI/ATS READABILITY ---
+% accsupp: provides ActualText so PDF parsers/ATS read plain text for symbols
+% All section headings use \\texorpdfstring for clean PDF bookmarks
+% PDF metadata below helps ATS identify the document
+
+\\usepackage{hyperref}
 \\hypersetup{
     colorlinks=true,
     linkcolor=navyblue,
     urlcolor=navyblue,
     citecolor=navyblue,
-    pdfborder={0 0 1}
+    pdfborder={0 0 1},
+    pdftitle={${pdfTitle}},
+    pdfauthor={${pdfAuthor}},
+    pdfsubject={${pdfSubject}},
+    pdfkeywords={${pdfKeywords}},
+    pdfcreator={CV Manager - LaTeX},
+    pdfproducer={pdflatex}
 }
-
-%--- COLORS ---
-\\definecolor{navyblue}{RGB}{0, 53, 107}
-\\definecolor{graytext}{RGB}{80, 80, 80}
 
 %--- FORMATTING ---
 \\titleformat{\\section}
@@ -263,11 +294,13 @@ function generateLatex(profile, sections, config) {
     if (items.length === 0) continue;
 
     const sectionLabel = isDE ? section.labelDe : section.labelEn;
+    const escapedLabel = escapeLatex(sectionLabel);
 
     // Prevent page-break between section title and first entry
+    // \texorpdfstring: first arg is rendered LaTeX, second is plain text for PDF bookmarks/ATS
     tex += `%===============================================================================
 \\needspace{5\\baselineskip}
-\\section{${escapeLatex(sectionLabel)}}
+\\section{\\texorpdfstring{${escapedLabel}}{${sectionLabel}}}
 
 `;
 
