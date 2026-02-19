@@ -5,6 +5,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { generateLatex, getTemplateVersion } = require('./latex');
 const multer = require('multer');
+const { logger, buildCrashReport, buildGitHubIssueUrl, LOG_DIR } = require('./logger');
 
 const app = express();
 app.use(cors());
@@ -156,6 +157,7 @@ app.post('/api/generate', (req, res) => {
       if (!pdfExists) {
         const logFile = path.join(tempDir, 'cv.log');
         const logContent = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').slice(-2000) : '';
+        logger.error('LaTeX compilation failed', logContent);
         fs.rmSync(tempDir, { recursive: true, force: true });
         return res.status(500).json({ error: 'LaTeX compilation failed', log: logContent });
       }
@@ -196,7 +198,7 @@ app.post('/api/generate', (req, res) => {
 
     res.json({ ok: true, filename, archiveEntry });
   } catch (err) {
-    console.error('Generate error:', err);
+    logger.error('Generate error', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -288,7 +290,7 @@ app.get('/api/check-update', (_req, res) => {
       try {
         remoteSha = getRemoteLatestSha(UPDATE_REPO);
       } catch (gitErr) {
-        console.warn('Remote SHA check failed:', gitErr.message);
+        logger.warn('Remote SHA check failed: ' + gitErr.message);
       }
     }
 
@@ -401,18 +403,60 @@ app.post('/api/update', (_req, res) => {
   }
 });
 
+// ── Logs & Crash Report ──────────────────────────────────────────────────────
+app.get('/api/logs', (_req, res) => {
+  try {
+    const files = fs.readdirSync(LOG_DIR)
+      .filter(f => f.startsWith('cv-manager-') && f.endsWith('.log'))
+      .sort().reverse();
+    // Return the last 200 lines from the most recent log files
+    let lines = [];
+    for (const f of files) {
+      if (lines.length >= 200) break;
+      const content = fs.readFileSync(path.join(LOG_DIR, f), 'utf8');
+      lines = content.split('\n').filter(Boolean).concat(lines);
+    }
+    res.json({ lines: lines.slice(-200) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/crash-report', (req, res) => {
+  const errorMessage = req.query.error || null;
+  const report = buildCrashReport(errorMessage);
+  const issueUrl = buildGitHubIssueUrl(report);
+  res.json({ report, issueUrl });
+});
+
+// ── Express error-handling middleware (must be last) ─────────────────────────
+app.use((err, _req, res, _next) => {
+  logger.error('Unhandled express error', err);
+  res.status(500).json({ error: err.message || 'Internal server error' });
+});
+
 // ── Shutdown endpoint ───────────────────────────────────────────────────────
 app.post('/api/shutdown', (_req, res) => {
-  console.log('\n⚠️  Shutdown requested via API');
+  logger.info('Shutdown requested via API');
   res.json({ ok: true, message: 'Server shutting down...' });
   setTimeout(() => {
-    console.log('👋 CV Manager stopped\n');
+    logger.info('CV Manager stopped');
     process.exit(0);
   }, 500);
 });
 
+// ── Global process error handlers ───────────────────────────────────────────
+process.on('uncaughtException', (err) => {
+  logger.error('UNCAUGHT EXCEPTION', err);
+  // Keep process alive – Express can continue serving
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('UNHANDLED REJECTION', reason instanceof Error ? reason : new Error(String(reason)));
+});
+
 const PORT = 3001;
 const server = app.listen(PORT, () => {
-  console.log(`\n  CV Manager API running on http://localhost:${PORT}`);
-  console.log(`  Frontend at http://localhost:5173\n`);
+  logger.info(`CV Manager API running on http://localhost:${PORT}`);
+  logger.info(`Frontend at http://localhost:5173`);
 });

@@ -71,3 +71,10 @@ export const applyUpdate = () => request('/update', { method: 'POST' });
 
 // Shutdown server
 export const shutdownServer = () => request('/shutdown', { method: 'POST' });
+
+// Logs & Crash Report
+export const getLogs = () => request('/logs');
+export const getCrashReport = (errorMessage) => {
+  const params = errorMessage ? `?error=${encodeURIComponent(errorMessage)}` : '';
+  return request(`/crash-report${params}`);
+};

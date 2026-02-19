@@ -22,9 +22,14 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [crashReportOpen, setCrashReportOpen] = useState(false);
+  const [crashReport, setCrashReport] = useState(null);
+  const [crashReportLoading, setCrashReportLoading] = useState(false);
+  const [lastError, setLastError] = useState(null);
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
+    if (type === 'error') setLastError(message);
     setTimeout(() => setToast(null), 3000);
   }, []);
 
@@ -141,6 +146,19 @@ export default function App() {
   const [serverStopped, setServerStopped] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
 
+  const handleOpenCrashReport = async () => {
+    setCrashReportLoading(true);
+    setCrashReportOpen(true);
+    try {
+      const data = await api.getCrashReport(lastError || undefined);
+      setCrashReport(data);
+    } catch (err) {
+      setCrashReport({ error: err.message });
+    } finally {
+      setCrashReportLoading(false);
+    }
+  };
+
   const handleShutdown = async () => {
     if (!window.confirm('Stop the CV Manager server?\n\nYou will need to restart it manually.')) return;
     try {
@@ -246,6 +264,13 @@ export default function App() {
           )}
           <small>LaTeX CV Generator</small>
           <button
+            className="report-btn"
+            onClick={handleOpenCrashReport}
+            title="View logs & report an issue"
+          >
+            🐛 Report Issue
+          </button>
+          <button
             className="kill-btn"
             onClick={handleShutdown}
             title="Stop CV Manager"
@@ -295,6 +320,83 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Crash Report Modal */}
+      {crashReportOpen && (
+        <div className="modal-overlay" onClick={() => setCrashReportOpen(false)}>
+          <div className="modal crash-report-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 720 }}>
+            <div className="modal-header">
+              <h3>🐛 Report Issue / View Logs</h3>
+              <button className="modal-close" onClick={() => setCrashReportOpen(false)}>&times;</button>
+            </div>
+
+            {crashReportLoading && (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>
+                <div className="spinner" />
+                <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)' }}>Loading logs…</p>
+              </div>
+            )}
+
+            {crashReport && !crashReportLoading && (
+              <>
+                {crashReport.error ? (
+                  <div className="crash-report-error">
+                    <p>Could not load crash report: {crashReport.error}</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* System Info */}
+                    <div className="crash-report-section">
+                      <h4>System Information</h4>
+                      <div className="crash-report-info-grid">
+                        {Object.entries(crashReport.report.systemInfo).map(([key, val]) => (
+                          <div key={key} className="crash-report-info-item">
+                            <span className="crash-report-info-label">{key}</span>
+                            <span className="crash-report-info-value">{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Recent Errors */}
+                    {crashReport.report.recentErrors.length > 0 && (
+                      <div className="crash-report-section">
+                        <h4>Recent Errors ({crashReport.report.recentErrors.length})</h4>
+                        <pre className="crash-report-log crash-report-errors">
+                          {crashReport.report.recentErrors.slice(-10).join('\n')}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* Full Log */}
+                    <div className="crash-report-section">
+                      <h4>Recent Log</h4>
+                      <pre className="crash-report-log">
+                        {crashReport.report.recentLogs.slice(-80).join('\n')}
+                      </pre>
+                    </div>
+                  </>
+                )}
+
+                <div className="modal-footer">
+                  {crashReport.issueUrl && (
+                    <a
+                      href={crashReport.issueUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-primary"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}
+                    >
+                      🐙 Open GitHub Issue
+                    </a>
+                  )}
+                  <button className="btn" onClick={() => setCrashReportOpen(false)}>Close</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

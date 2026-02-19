@@ -93,6 +93,52 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.2); }
   50% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
 }
+.report-btn {
+  background: rgba(245, 158, 11, 0.12); color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px;
+  padding: 0.5rem 0.75rem; font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; display: flex;
+  align-items: center; justify-content: center; gap: 0.5rem;
+}
+.report-btn:hover {
+  background: rgba(245, 158, 11, 0.22); border-color: rgba(245, 158, 11, 0.45);
+  color: #fde68a; transform: translateY(-1px);
+}
+
+/* ── Crash Report Modal ──────────────────────────────────────────────────── */
+.crash-report-modal { max-height: 85vh; overflow-y: auto; }
+.crash-report-section { margin-bottom: 1rem; }
+.crash-report-section h4 {
+  font-size: 0.85rem; font-weight: 700; color: var(--primary);
+  margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.crash-report-info-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.35rem 1rem;
+}
+.crash-report-info-item {
+  display: flex; align-items: baseline; gap: 0.4rem;
+  font-size: 0.82rem;
+}
+.crash-report-info-label {
+  font-weight: 600; color: var(--text-muted); min-width: 110px;
+}
+.crash-report-info-value {
+  font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 0.8rem;
+}
+.crash-report-log {
+  background: #1a1a2e; color: #d4d4d4; border-radius: var(--radius-sm);
+  padding: 0.75rem; font-size: 0.72rem; line-height: 1.5;
+  max-height: 220px; overflow-y: auto; white-space: pre-wrap;
+  word-break: break-all; font-family: 'Fira Code', 'Cascadia Code', monospace;
+}
+.crash-report-errors {
+  border-left: 3px solid var(--danger); max-height: 140px;
+}
+.crash-report-error {
+  background: var(--danger-bg); color: var(--danger); padding: 0.75rem;
+  border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 0.75rem;
+}
 
 /* ── Main Content ────────────────────────────────────────────────────────── */
 .main-content { flex: 1; padding: 2rem; max-width: 1100px; overflow-y: auto; }

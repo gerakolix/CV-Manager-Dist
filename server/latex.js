@@ -31,6 +31,17 @@ function escapeLatex(text) {
     .replace(/\^/g, '\\textasciicircum{}');
 }
 
+// Sanitize text for PDF metadata strings (hypersetup pdftitle, pdfauthor, etc.)
+// These fields need plain text — no LaTeX commands, no special chars that break brace parsing
+function sanitizeForPdfString(text) {
+  if (!text) return '';
+  return text
+    .replace(/\\/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/[\n\r]/g, ' ')
+    .trim();
+}
+
 function processDescription(text) {
   if (!text) return '';
   const lines = text.split('\n').map(l => escapeLatex(l.trim())).filter(Boolean);
@@ -142,15 +153,15 @@ function generateLatex(profile, sections, config) {
   let tex = '';
 
   // ── Preamble ─────────────────────────────────────────────────────────────
-  const pdfTitle = `CV - ${escapeLatex(mergedProfile.name || 'Curriculum Vitae')}`;
-  const pdfAuthor = escapeLatex(mergedProfile.name || '');
+  const pdfTitle = sanitizeForPdfString(`CV - ${mergedProfile.name || 'Curriculum Vitae'}`);
+  const pdfAuthor = sanitizeForPdfString(mergedProfile.name || '');
   const pdfSubject = isDE ? 'Lebenslauf' : 'Curriculum Vitae';
   const pdfKeywords = [
     mergedProfile.name,
     l(mergedProfile, 'title', lang),
     ...(config.tags || []),
     config.name,
-  ].filter(Boolean).map(k => escapeLatex(k)).join(', ');
+  ].filter(Boolean).map(k => sanitizeForPdfString(k)).join(', ');
 
   tex += `\\documentclass[a4paper,10pt]{article}
 
@@ -168,16 +179,17 @@ function generateLatex(profile, sections, config) {
 \\usepackage{tikz}
 \\usepackage{etoolbox}
 \\usepackage{needspace}
-\\usepackage{accsupp}
+
+%--- AI/ATS READABILITY ---
+% Load accsupp if available (provides ActualText for ATS parsers)
+\\IfFileExists{accsupp.sty}{\\usepackage{accsupp}}{}
 
 %--- COLORS ---
 \\definecolor{navyblue}{RGB}{0, 53, 107}
 \\definecolor{graytext}{RGB}{80, 80, 80}
 
-%--- AI/ATS READABILITY ---
-% accsupp: provides ActualText so PDF parsers/ATS read plain text for symbols
-% All section headings use \\texorpdfstring for clean PDF bookmarks
-% PDF metadata below helps ATS identify the document
+%--- HYPERLINKS & PDF METADATA ---
+% \\texorpdfstring for clean PDF bookmarks, metadata for ATS identification
 
 \\usepackage{hyperref}
 \\hypersetup{
@@ -295,12 +307,13 @@ function generateLatex(profile, sections, config) {
 
     const sectionLabel = isDE ? section.labelDe : section.labelEn;
     const escapedLabel = escapeLatex(sectionLabel);
+    const bookmarkLabel = sanitizeForPdfString(sectionLabel);
 
     // Prevent page-break between section title and first entry
     // \texorpdfstring: first arg is rendered LaTeX, second is plain text for PDF bookmarks/ATS
     tex += `%===============================================================================
-\\needspace{5\\baselineskip}
-\\section{\\texorpdfstring{${escapedLabel}}{${sectionLabel}}}
+\needspace{5\baselineskip}
+\section{\texorpdfstring{${escapedLabel}}{${bookmarkLabel}}}
 
 `;
 
